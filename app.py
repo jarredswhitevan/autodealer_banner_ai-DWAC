@@ -100,7 +100,11 @@ if files:
     for i, f in enumerate(files):
         with cols[i % 3]:
             processed = process_image(f, bg_img)
-            st.image(processed, caption=f.name, use_container_width=True)
+            if processed is not None:
+    st.image(processed, caption=f.name, use_container_width=True)
+else:
+    st.warning(f"⚠️ Failed to process {f.name}")
+
             results.append((f"{os.path.splitext(f.name)[0]}_branded.jpg", processed))
 
     if results:

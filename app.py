@@ -1,4 +1,4 @@
-import io, os, requests
+import io, os
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 from utils import images_to_zip
@@ -6,7 +6,7 @@ from utils import images_to_zip
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="AutoDealer Banner AI", layout="wide")
 st.title("🚗 AutoDealer Banner AI")
-st.caption("Uploads → AI background removal → Red dealership banners → Download-ready marketing images")
+st.caption("Uploads → Cleaned backgrounds → Red dealership banners → Download-ready marketing images")
 
 # ---------------- ASSETS ----------------
 BACKGROUND_PATH = "assets/dwa_building_clean.png"
@@ -29,26 +29,24 @@ def enhance_image(img: Image.Image):
     img = ImageEnhance.Sharpness(img).enhance(1.2)
     return img
 
-# ---------------- BACKGROUND REMOVAL (API) ----------------
+# ---------------- LOCAL BACKGROUND "REMOVAL" ----------------
 def remove_bg_online(img: Image.Image):
     """
-    Removes background using the rembg.io API.
-    Works fully inside Streamlit Cloud (no local libs required).
+    Offline-safe fallback: light fade vignette to clean edges.
+    Ensures app works even when external AI APIs are unreachable.
     """
-    url = "https://api.rembg.io"
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-
     try:
-        response = requests.post(url, files={"image": buf.getvalue()})
-        if response.status_code == 200 and "image" in response.headers.get("content-type", ""):
-            return Image.open(io.BytesIO(response.content)).convert("RGBA")
-        else:
-            st.warning("⚠️ Background removal failed; using original image.")
-            return img.convert("RGBA")
+        w, h = img.size
+        fade = 80  # pixels of edge fade
+        mask = Image.new("L", (w, h), 255)
+        for i in range(fade):
+            mask.paste(int(255 * (1 - i / fade)), (i, i, w - i, h - i))
+        bg = Image.new("RGB", (w, h), (245, 245, 245))
+        img = img.convert("RGB")
+        bg.paste(img, (0, 0), mask)
+        return bg.convert("RGBA")
     except Exception as e:
-        st.warning(f"⚠️ Background removal error: {e}")
+        st.warning(f"⚠️ Background fallback failed: {e}")
         return img.convert("RGBA")
 
 # ---------------- SIDEBAR CONTROLS ----------------
@@ -60,7 +58,7 @@ with st.sidebar:
     phone = "419-882-8736"
     st.write("---")
     st.markdown("**All banners stay red for brand consistency.**")
-    st.write("Output size: 1600×900 (optimized for Marketplace and website)")
+    st.write("Output size: 1600×900 (optimized for Marketplace & website)")
 
 # ---------------- BANNER BUILDER ----------------
 def add_banners(car_img: Image.Image, bg_img: Image.Image, top_text, address, phone, dealer_name):
@@ -69,7 +67,7 @@ def add_banners(car_img: Image.Image, bg_img: Image.Image, top_text, address, ph
     car_img = resize_max_side(car_img, 1000)
     w, h = car_img.size
 
-    # Center the vehicle over the dealership background
+    # Center car over background
     bg.paste(car_img, (int((bg.width - w)/2), int(bg.height - h*0.65)), car_img)
     draw = ImageDraw.Draw(bg)
 
@@ -81,13 +79,13 @@ def add_banners(car_img: Image.Image, bg_img: Image.Image, top_text, address, ph
     except:
         font_top = font_bottom = font_small = ImageFont.load_default()
 
-    # Top red banner
+    # Top banner (red)
     banner_h = 100
     top_banner = Image.new("RGB", (bg.width, banner_h), (200, 0, 0))
     bg.paste(top_banner, (0, 0))
     draw.text((40, 15), top_text.upper(), font=font_top, fill="white")
 
-    # Bottom red banner
+    # Bottom banner (red)
     bh = 120
     bbar = Image.new("RGB", (bg.width, bh), (200, 0, 0))
     bg.paste(bbar, (0, bg.height - bh))
@@ -99,7 +97,7 @@ def add_banners(car_img: Image.Image, bg_img: Image.Image, top_text, address, ph
 
 # ---------------- PROCESSING PIPELINE ----------------
 def process_image(uploaded_file, bg_img):
-    """Full enhancement + background removal + banner pipeline."""
+    """Full enhancement + background cleanup + banner pipeline."""
     try:
         img = Image.open(uploaded_file).convert("RGB")
     except Exception as e:

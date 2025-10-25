@@ -1,7 +1,7 @@
 import io, os, requests
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
-from processors import resize_max_side, pil_to_cv, cv_to_pil, auto_white_balance_cv, clahe_contrast_cv, mild_sharpen_cv
+from processors import resize_max_side, enhance_image
 from utils import images_to_zip
 
 # CONFIG
@@ -84,11 +84,7 @@ def process_image(uploaded_file, bg_img):
     img = Image.open(uploaded_file).convert("RGB")
     img = resize_max_side(img, 2000)
 
-    cv = pil_to_cv(img)
-    cv = auto_white_balance_cv(cv)
-    cv = clahe_contrast_cv(cv)
-    cv = mild_sharpen_cv(cv)
-    img = cv_to_pil(cv)
+    img = enhance_image(img)
 
     # use online background remover
     no_bg = remove_bg_online(img)

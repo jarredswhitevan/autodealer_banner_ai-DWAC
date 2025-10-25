@@ -3,17 +3,14 @@ import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
 from utils import images_to_zip
 
-# ---------------- CONFIG ----------------
 st.set_page_config(page_title="AutoDealer Banner AI", layout="wide")
 st.title("🚗 AutoDealer Banner AI")
-st.caption("Uploads → Cleaned backgrounds → Red dealership banners → Download-ready marketing images")
+st.caption("Uploads → Clean backgrounds → Red dealership banners → Download-ready images")
 
-# ---------------- ASSETS ----------------
 BACKGROUND_PATH = "assets/dwa_building_clean.png"
 FONT_BOLD = "assets/Roboto-Bold.ttf"
 FONT_REGULAR = "assets/Roboto-Regular.ttf"
 
-# ---------------- IMAGE ENHANCEMENT ----------------
 def resize_max_side(img: Image.Image, max_side=2048):
     try:
         w, h = img.size
@@ -34,9 +31,8 @@ def enhance_image(img: Image.Image):
     except Exception:
         return img
 
-# ---------------- BACKGROUND CLEANUP ----------------
 def remove_bg_local(img: Image.Image):
-    """Offline-safe: apply light vignette to simulate cleaned background."""
+    """Offline-safe fade cleanup"""
     try:
         w, h = img.size
         fade = 80
@@ -51,7 +47,6 @@ def remove_bg_local(img: Image.Image):
         st.warning(f"⚠️ Background cleanup failed: {e}")
         return img.convert("RGBA")
 
-# ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.header("Banner Settings")
     top_text = st.text_input("Top Banner (Year Make Model):", "2013 RAM 1500")
@@ -60,33 +55,26 @@ with st.sidebar:
     phone = "419-882-8736"
     st.write("---")
     st.markdown("**All banners stay red for brand consistency.**")
-    st.write("Output size: 1600×900 (optimized for web & Marketplace)")
+    st.write("Output size: 1600×900 (optimized for Marketplace & website)")
 
-# ---------------- BANNERS ----------------
 def add_banners(car_img: Image.Image, bg_img: Image.Image, top_text, address, phone, dealer_name):
     try:
         bg = bg_img.convert("RGB").resize((1600, 900))
         car_img = car_img.convert("RGBA")
         car_img = resize_max_side(car_img, 1000)
         w, h = car_img.size
-
         bg.paste(car_img, (int((bg.width - w)/2), int(bg.height - h*0.65)), car_img)
         draw = ImageDraw.Draw(bg)
-
         try:
             font_top = ImageFont.truetype(FONT_BOLD, 60)
             font_bottom = ImageFont.truetype(FONT_BOLD, 40)
             font_small = ImageFont.truetype(FONT_REGULAR, 36)
         except Exception:
             font_top = font_bottom = font_small = ImageFont.load_default()
-
-        # Top banner
         banner_h = 100
         top_banner = Image.new("RGB", (bg.width, banner_h), (200, 0, 0))
         bg.paste(top_banner, (0, 0))
         draw.text((40, 15), top_text.upper(), font=font_top, fill="white")
-
-        # Bottom banner
         bh = 120
         bbar = Image.new("RGB", (bg.width, bh), (200, 0, 0))
         bg.paste(bbar, (0, bg.height - bh))
@@ -98,32 +86,21 @@ def add_banners(car_img: Image.Image, bg_img: Image.Image, top_text, address, ph
         st.warning(f"⚠️ Banner render failed: {e}")
         return car_img.convert("RGB")
 
-# ---------------- PIPELINE ----------------
 def process_image(uploaded_file, bg_img):
-    """Complete image pipeline."""
     try:
         img = Image.open(uploaded_file).convert("RGB")
     except Exception as e:
         st.warning(f"⚠️ Could not open {uploaded_file.name}: {e}")
         return None
-
     img = resize_max_side(img, 2000)
     img = enhance_image(img)
     cleaned = remove_bg_local(img)
     final = add_banners(cleaned, bg_img, top_text, address, phone, dealer_name)
-
-    # Ensure valid PIL image
     if not isinstance(final, Image.Image):
-        st.warning(f"⚠️ Processing failed for {uploaded_file.name}")
         return None
     return final
 
-# ---------------- MAIN APP ----------------
-files = st.file_uploader(
-    "Upload vehicle photos",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True
-)
+files = st.file_uploader("Upload vehicle photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if files:
     try:
@@ -134,19 +111,17 @@ if files:
 
     cols = st.columns(3)
     results = []
-
     for i, f in enumerate(files):
         with cols[i % 3]:
             processed = process_image(f, bg_img)
             if isinstance(processed, Image.Image):
                 try:
-                    st.image(processed, caption=f.name, use_container_width=True)
+                    st.image(processed, caption=f.name, use_column_width=True)
                     results.append((f"{os.path.splitext(f.name)[0]}_branded.jpg", processed))
                 except Exception as e:
                     st.warning(f"⚠️ Display failed for {f.name}: {e}")
             else:
                 st.warning(f"⚠️ Skipped {f.name}")
-
     if results:
         try:
             buf = images_to_zip(results, "branded.zip")
